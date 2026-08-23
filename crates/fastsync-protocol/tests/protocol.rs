@@ -220,8 +220,8 @@ fn versioned_payload_rejects_an_unknown_version() -> Result<(), Box<dyn Error>> 
         error,
         ProtocolError::ProtocolVersionMismatch {
             expected: PROTOCOL_VERSION,
-            received: 2
-        }
+            received
+        } if received == PROTOCOL_VERSION + 1
     ));
     Ok(())
 }
