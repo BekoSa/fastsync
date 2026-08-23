@@ -1,4 +1,5 @@
-use std::fs::{self, BufWriter, File};
+use std::fs::{self, File};
+use std::io::BufWriter;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -763,3 +764,4 @@ mod tests {
         Ok(())
     }
 }
+
