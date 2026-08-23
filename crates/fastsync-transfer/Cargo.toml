@@ -1,0 +1,30 @@
+[package]
+name = "fastsync-transfer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+blake3.workspace = true
+bytes.workspace = true
+dashmap.workspace = true
+ed25519-dalek.workspace = true
+fastsync-core = { path = "../fastsync-core" }
+fastsync-protocol = { path = "../fastsync-protocol" }
+fastsync-storage = { path = "../fastsync-storage" }
+futures.workspace = true
+quinn.workspace = true
+rand.workspace = true
+rcgen.workspace = true
+rustls.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "3.20"

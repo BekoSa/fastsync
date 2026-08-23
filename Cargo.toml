@@ -1,0 +1,57 @@
+[workspace]
+members = [
+    "crates/fastsync-core",
+    "crates/fastsync-protocol",
+    "crates/fastsync-storage",
+    "crates/fastsync-discovery",
+    "crates/fastsync-transfer",
+    "crates/fastsync-agent",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["FastSync contributors"]
+
+[workspace.dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+axum = { version = "0.8", features = ["ws"] }
+base64 = "0.22"
+blake3 = "1.8"
+bytes = "1.10"
+ciborium = "0.2"
+clap = { version = "4.5", features = ["derive"] }
+dashmap = "6.1"
+dirs = "6.0"
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+filetime = "0.2"
+futures = "0.3"
+hostname = "0.4"
+parking_lot = "0.12"
+quinn = "0.11"
+rand = "0.8"
+rcgen = "0.13"
+rusqlite = { version = "0.32", features = ["bundled"] }
+rustls = { version = "0.23", features = ["ring"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1.47", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1.18", features = ["v4", "serde"] }
+walkdir = "2.5"
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

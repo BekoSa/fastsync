@@ -1,0 +1,15 @@
+[package]
+name = "fastsync-discovery"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+fastsync-core = { path = "../fastsync-core" }
+fastsync-protocol = { path = "../fastsync-protocol" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true

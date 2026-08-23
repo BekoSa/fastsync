@@ -1,0 +1,17 @@
+[package]
+name = "fastsync-storage"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ciborium.workspace = true
+fastsync-core = { path = "../fastsync-core" }
+parking_lot.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "3.20"
