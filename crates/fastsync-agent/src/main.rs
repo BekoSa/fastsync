@@ -49,7 +49,7 @@ struct AgentArgs {
     #[arg(long)]
     device_name: Option<String>,
 
-    /// HTTP dashboard and API listen address.
+    /// HTTP dashboard and API listen address. Must be a loopback address.
     #[arg(long, default_value = "127.0.0.1:8765")]
     http_bind: SocketAddr,
 
@@ -108,6 +108,7 @@ fn initialize_tracing() {
 }
 
 async fn run_agent(args: AgentArgs) -> Result<()> {
+    validate_http_bind(args.http_bind)?;
     if !(1..=3_600).contains(&args.discovery_interval) {
         bail!("--discovery-interval must be between 1 and 3600 seconds");
     }
@@ -292,6 +293,16 @@ async fn run_agent(args: AgentArgs) -> Result<()> {
     }
     tracing::info!("FastSync agent stopped");
     Ok(())
+}
+
+fn validate_http_bind(address: SocketAddr) -> Result<()> {
+    if address.ip().is_loopback() {
+        return Ok(());
+    }
+
+    bail!(
+        "--http-bind must use a loopback address (127.0.0.1 or ::1); refusing to expose the unauthenticated management API on {address}"
+    )
 }
 
 fn default_device_name() -> Result<String> {
