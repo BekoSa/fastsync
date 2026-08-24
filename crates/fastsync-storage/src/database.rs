@@ -252,10 +252,9 @@ impl Database {
                     ORDER BY last_seen DESC, name COLLATE NOCASE
                 "#,
             )?;
-            let rows = statement
+            statement
                 .query_map([], raw_device)?
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-            rows
+                .collect::<std::result::Result<Vec<_>, _>>()?
         };
 
         raw_devices.into_iter().map(device_from_raw).collect()
@@ -323,10 +322,9 @@ impl Database {
                     ORDER BY name COLLATE NOCASE, device_id
                 "#,
             )?;
-            let rows = statement
+            statement
                 .query_map([], raw_trusted_peer)?
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-            rows
+                .collect::<std::result::Result<Vec<_>, _>>()?
         };
 
         raw_peers.into_iter().map(trusted_peer_from_raw).collect()
@@ -499,10 +497,9 @@ impl Database {
                     ORDER BY created_at DESC, id
                 "#,
             )?;
-            let rows = statement
+            statement
                 .query_map([], raw_job)?
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-            rows
+                .collect::<std::result::Result<Vec<_>, _>>()?
         };
 
         raw_jobs.into_iter().map(job_from_raw).collect()
@@ -695,10 +692,9 @@ impl Database {
                     ORDER BY path
                 "#,
             )?;
-            let rows = statement
+            statement
                 .query_map(params![job_id.to_string()], raw_job_file)?
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-            rows
+                .collect::<std::result::Result<Vec<_>, _>>()?
         };
 
         raw_files.into_iter().map(job_file_from_raw).collect()
@@ -831,13 +827,12 @@ impl Database {
                     ORDER BY chunk_index
                 "#,
             )?;
-            let rows = statement
+            statement
                 .query_map(
                     params![job_id.to_string(), path, source_hash.as_slice()],
                     raw_chunk,
                 )?
-                .collect::<std::result::Result<Vec<_>, _>>()?;
-            rows
+                .collect::<std::result::Result<Vec<_>, _>>()?
         };
 
         raw_chunks.into_iter().map(chunk_from_raw).collect()
@@ -999,6 +994,7 @@ fn secure_database_file(path: &Path) -> Result<()> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .mode(0o600)
         .open(path)
         .map_err(|source| StorageError::SecurePath {
@@ -1172,16 +1168,16 @@ struct PreparedJob {
 
 impl PreparedJob {
     fn from_record(job: &JobRecord) -> Result<Self> {
-        if let Some(core_status) = job.status.core_status() {
-            if core_status != job.job.status {
-                return Err(StorageError::InvalidData {
-                    field: "jobs.status",
-                    message: format!(
-                        "stored status {:?} does not match transfer job status {:?}",
-                        job.status, job.job.status
-                    ),
-                });
-            }
+        if let Some(core_status) = job.status.core_status()
+            && core_status != job.job.status
+        {
+            return Err(StorageError::InvalidData {
+                field: "jobs.status",
+                message: format!(
+                    "stored status {:?} does not match transfer job status {:?}",
+                    job.status, job.job.status
+                ),
+            });
         }
 
         Ok(Self {
@@ -1582,10 +1578,9 @@ mod tests {
         let tables = {
             let mut statement = connection
                 .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")?;
-            let rows = statement
+            statement
                 .query_map([], |row| row.get::<_, String>(0))?
-                .collect::<std::result::Result<BTreeSet<_>, _>>()?;
-            rows
+                .collect::<std::result::Result<BTreeSet<_>, _>>()?
         };
         for expected in [
             "settings",
