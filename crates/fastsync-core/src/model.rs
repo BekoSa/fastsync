@@ -220,7 +220,7 @@ pub struct HashedFile {
     pub chunks: Vec<ChunkDescriptor>,
 }
 
-fn serialize_wire_path<S>(path: &String, serializer: S) -> std::result::Result<S::Ok, S::Error>
+fn serialize_wire_path<S>(path: &str, serializer: S) -> std::result::Result<S::Ok, S::Error>
 where
     S: Serializer,
 {

@@ -18,7 +18,7 @@ use fastsync_protocol::{
 use fastsync_storage::{JobFileRecord, JobFileStatus};
 use futures::{StreamExt, stream};
 use tokio::fs::File;
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, SeekFrom};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
@@ -842,7 +842,6 @@ impl TransferEngine {
         let mut transferred_by_file: HashMap<String, u64> = HashMap::new();
         while let Some((path, file_size, chunk_size, result)) = work.next().await {
             job.progress.queued_chunks = job.progress.queued_chunks.saturating_sub(1);
-            let succeeded = matches!(result, Ok(true));
             match result {
                 Ok(true) => {
                     phase_bytes = phase_bytes.saturating_add(chunk_size);
