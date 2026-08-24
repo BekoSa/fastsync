@@ -443,13 +443,13 @@ impl JobManager {
                         }
                         let progress = progress_receiver.borrow_and_update().clone();
                         self.record_progress(job_id, progress);
-                        if *control.pause.borrow() {
-                            if let Err(error) = self.inner.database.update_job_status(
-                                job_id,
-                                JobStatus::Paused,
-                            ) {
-                                tracing::warn!(%job_id, %error, "failed to persist paused status");
-                            }
+                        if *control.pause.borrow()
+                            && let Err(error) = self
+                                .inner
+                                .database
+                                .update_job_status(job_id, JobStatus::Paused)
+                        {
+                            tracing::warn!(%job_id, %error, "failed to persist paused status");
                         }
                         self.inner.events.send(AppEvent::job_progress(job_id));
                     }
