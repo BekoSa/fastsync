@@ -113,13 +113,13 @@ impl TransferEngine {
             }
         };
         let public_key = validate_server_handshake(&server, &handshake, &certificate_fingerprint)?;
-        if let Some(expected) = expected_device_id {
-            if server.device_id != expected {
-                return Err(TransferError::Authentication(format!(
-                    "connected to device {}, expected {expected}",
-                    server.device_id
-                )));
-            }
+        if let Some(expected) = expected_device_id
+            && server.device_id != expected
+        {
+            return Err(TransferError::Authentication(format!(
+                "connected to device {}, expected {expected}",
+                server.device_id
+            )));
         }
         let trusted = self.validate_trusted_key(server.device_id, &public_key)?;
         self.record_peer(server.device_id, &server.device_name, &public_key, address)?;
