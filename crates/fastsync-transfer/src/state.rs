@@ -273,12 +273,12 @@ impl IncomingJob {
             parents.push(parent.to_owned());
             offset += 1;
         }
-        if entry.file_type == fastsync_core::FileType::File {
-            if active.required_directories.contains(path) {
-                return Err(TransferError::InvalidData(format!(
-                    "manifest file {path:?} is an ancestor of another path"
-                )));
-            }
+        if entry.file_type == fastsync_core::FileType::File
+            && active.required_directories.contains(path)
+        {
+            return Err(TransferError::InvalidData(format!(
+                "manifest file {path:?} is an ancestor of another path"
+            )));
         }
         active.paths.insert(path.clone());
         active.required_directories.extend(parents);

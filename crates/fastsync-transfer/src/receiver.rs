@@ -63,10 +63,9 @@ impl TransferEngine {
                 if let Err(error) = engine
                     .handle_incoming_connection(incoming, connection_cancellation)
                     .await
+                    && !matches!(error, TransferError::Cancelled)
                 {
-                    if !matches!(error, TransferError::Cancelled) {
-                        tracing::debug!(%error, "FastSync QUIC connection ended");
-                    }
+                    tracing::debug!(%error, "FastSync QUIC connection ended");
                 }
             });
         }
@@ -610,13 +609,13 @@ impl TransferEngine {
         }
 
         let actual = existing_manifest(state.destination_root.clone(), destination.clone()).await?;
-        if let Some(actual) = &actual {
-            if actual.file_type != FileType::File {
-                return Err(TransferError::InvalidData(format!(
-                    "destination `{}` is not a regular file",
-                    destination.display()
-                )));
-            }
+        if let Some(actual) = &actual
+            && actual.file_type != FileType::File
+        {
+            return Err(TransferError::InvalidData(format!(
+                "destination `{}` is not a regular file",
+                destination.display()
+            )));
         }
 
         let existing_hash =
@@ -857,9 +856,9 @@ impl TransferEngine {
     ) -> Result<()> {
         let file = &incoming.file;
         let partial = &incoming.staging;
-        let metadata = fs::symlink_metadata(&partial)
+        let metadata = fs::symlink_metadata(partial)
             .await
-            .map_err(|error| TransferError::io("checking partial file", &partial, error))?;
+            .map_err(|error| TransferError::io("checking partial file", partial, error))?;
         if metadata.file_type().is_symlink()
             || !metadata.is_file()
             || metadata.len() != file.entry.size
