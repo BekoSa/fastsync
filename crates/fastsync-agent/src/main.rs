@@ -318,4 +318,17 @@ mod tests {
             assert_eq!(cli.agent.quic_bind.port(), DEFAULT_QUIC_PORT);
         }
     }
+
+    #[test]
+    fn http_bind_rejects_non_loopback_addresses() {
+        for address in ["127.0.0.1:8765", "[::1]:8765"] {
+            let address: SocketAddr = address.parse().expect("valid loopback address");
+            assert!(validate_http_bind(address).is_ok());
+        }
+
+        for address in ["0.0.0.0:8765", "[::]:8765", "192.168.1.10:8765"] {
+            let address: SocketAddr = address.parse().expect("valid non-loopback address");
+            assert!(validate_http_bind(address).is_err());
+        }
+    }
 }
