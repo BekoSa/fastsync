@@ -342,4 +342,28 @@ mod tests {
             assert!(validate_http_bind(address).is_err());
         }
     }
+
+    #[test]
+    fn http_host_rejects_dns_rebinding_names() {
+        for host in [
+            "127.0.0.1",
+            "127.0.0.1:8765",
+            "[::1]",
+            "[::1]:8765",
+            "localhost",
+            "LOCALHOST:8765",
+        ] {
+            assert!(is_allowed_http_host(host), "expected local host {host:?}");
+        }
+
+        for host in [
+            "attacker.example",
+            "attacker.example:8765",
+            "127.0.0.1.attacker.example:8765",
+            "0.0.0.0:8765",
+            "[::]:8765",
+        ] {
+            assert!(!is_allowed_http_host(host), "accepted untrusted host {host:?}");
+        }
+    }
 }
