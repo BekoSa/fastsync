@@ -8,6 +8,10 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
+use axum::body::Body;
+use axum::http::{Request, StatusCode, header};
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
 use benchmark::{GenerateDatasetArgs, LocalBenchmarkArgs};
 use clap::{Args, Parser, Subcommand};
 use fastsync_discovery::{DiscoveryConfig, DiscoveryService};
@@ -181,7 +185,7 @@ async fn run_agent(args: AgentArgs) -> Result<()> {
     let http_cancellation = cancellation.clone();
     let http_shutdown = http_cancellation.clone();
     let http_failure = fatal_sender.clone();
-    let application = api::router(state.clone());
+    let application = api::router(state.clone()).layer(middleware::from_fn(reject_untrusted_host));
     tasks.push(tokio::spawn(async move {
         let shutdown = async move {
             http_shutdown.cancelled().await;
@@ -295,6 +299,33 @@ async fn run_agent(args: AgentArgs) -> Result<()> {
     Ok(())
 }
 
+async fn reject_untrusted_host(request: Request<Body>, next: Next) -> Response {
+    let allowed = request
+        .headers()
+        .get(header::HOST)
+        .and_then(|host| host.to_str().ok())
+        .is_some_and(is_allowed_http_host);
+    if allowed {
+        next.run(request).await
+    } else {
+        (StatusCode::FORBIDDEN, "untrusted Host header").into_response()
+    }
+}
+
+fn is_allowed_http_host(host: &str) -> bool {
+    let Ok(authority) = host.parse::<axum::http::uri::Authority>() else {
+        return false;
+    };
+    let hostname = authority
+        .host()
+        .trim_start_matches('[')
+        .trim_end_matches(']');
+    hostname.eq_ignore_ascii_case("localhost")
+        || hostname
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
+}
+
 fn validate_http_bind(address: SocketAddr) -> Result<()> {
     if address.ip().is_loopback() {
         return Ok(());
@@ -363,7 +394,10 @@ mod tests {
             "0.0.0.0:8765",
             "[::]:8765",
         ] {
-            assert!(!is_allowed_http_host(host), "accepted untrusted host {host:?}");
+            assert!(
+                !is_allowed_http_host(host),
+                "accepted untrusted host {host:?}"
+            );
         }
     }
 }
