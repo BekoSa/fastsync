@@ -1,0 +1,1 @@
+Temporary marker used to trigger CI for PR #4 stacked on fix/rust-1.98-quality.
