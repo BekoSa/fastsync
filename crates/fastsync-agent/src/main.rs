@@ -8,6 +8,10 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
+use axum::body::Body;
+use axum::http::{Request, StatusCode, header};
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
 use benchmark::{GenerateDatasetArgs, LocalBenchmarkArgs};
 use clap::{Args, Parser, Subcommand};
 use fastsync_discovery::{DiscoveryConfig, DiscoveryService};
@@ -49,7 +53,7 @@ struct AgentArgs {
     #[arg(long)]
     device_name: Option<String>,
 
-    /// HTTP dashboard and API listen address.
+    /// HTTP dashboard and API listen address. Must be a loopback address.
     #[arg(long, default_value = "127.0.0.1:8765")]
     http_bind: SocketAddr,
 
@@ -108,6 +112,7 @@ fn initialize_tracing() {
 }
 
 async fn run_agent(args: AgentArgs) -> Result<()> {
+    validate_http_bind(args.http_bind)?;
     if !(1..=3_600).contains(&args.discovery_interval) {
         bail!("--discovery-interval must be between 1 and 3600 seconds");
     }
@@ -180,7 +185,7 @@ async fn run_agent(args: AgentArgs) -> Result<()> {
     let http_cancellation = cancellation.clone();
     let http_shutdown = http_cancellation.clone();
     let http_failure = fatal_sender.clone();
-    let application = api::router(state.clone());
+    let application = api::router(state.clone()).layer(middleware::from_fn(reject_untrusted_host));
     tasks.push(tokio::spawn(async move {
         let shutdown = async move {
             http_shutdown.cancelled().await;
@@ -294,6 +299,43 @@ async fn run_agent(args: AgentArgs) -> Result<()> {
     Ok(())
 }
 
+async fn reject_untrusted_host(request: Request<Body>, next: Next) -> Response {
+    let allowed = request
+        .headers()
+        .get(header::HOST)
+        .and_then(|host| host.to_str().ok())
+        .is_some_and(is_allowed_http_host);
+    if allowed {
+        next.run(request).await
+    } else {
+        (StatusCode::FORBIDDEN, "untrusted Host header").into_response()
+    }
+}
+
+fn is_allowed_http_host(host: &str) -> bool {
+    let Ok(authority) = host.parse::<axum::http::uri::Authority>() else {
+        return false;
+    };
+    let hostname = authority
+        .host()
+        .trim_start_matches('[')
+        .trim_end_matches(']');
+    hostname.eq_ignore_ascii_case("localhost")
+        || hostname
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
+}
+
+fn validate_http_bind(address: SocketAddr) -> Result<()> {
+    if address.ip().is_loopback() {
+        return Ok(());
+    }
+
+    bail!(
+        "--http-bind must use a loopback address (127.0.0.1 or ::1); refusing to expose the unauthenticated management API on {address}"
+    )
+}
+
 fn default_device_name() -> Result<String> {
     let hostname = hostname::get().context("failed to read hostname")?;
     let name = hostname.to_string_lossy().trim().to_owned();
@@ -316,6 +358,46 @@ mod tests {
             assert!(cli.command.is_none());
             assert_eq!(cli.agent.http_bind.port(), 8765);
             assert_eq!(cli.agent.quic_bind.port(), DEFAULT_QUIC_PORT);
+        }
+    }
+
+    #[test]
+    fn http_bind_rejects_non_loopback_addresses() {
+        for address in ["127.0.0.1:8765", "[::1]:8765"] {
+            let address: SocketAddr = address.parse().expect("valid loopback address");
+            assert!(validate_http_bind(address).is_ok());
+        }
+
+        for address in ["0.0.0.0:8765", "[::]:8765", "192.168.1.10:8765"] {
+            let address: SocketAddr = address.parse().expect("valid non-loopback address");
+            assert!(validate_http_bind(address).is_err());
+        }
+    }
+
+    #[test]
+    fn http_host_rejects_dns_rebinding_names() {
+        for host in [
+            "127.0.0.1",
+            "127.0.0.1:8765",
+            "[::1]",
+            "[::1]:8765",
+            "localhost",
+            "LOCALHOST:8765",
+        ] {
+            assert!(is_allowed_http_host(host), "expected local host {host:?}");
+        }
+
+        for host in [
+            "attacker.example",
+            "attacker.example:8765",
+            "127.0.0.1.attacker.example:8765",
+            "0.0.0.0:8765",
+            "[::]:8765",
+        ] {
+            assert!(
+                !is_allowed_http_host(host),
+                "accepted untrusted host {host:?}"
+            );
         }
     }
 }
