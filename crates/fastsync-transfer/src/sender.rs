@@ -1219,3 +1219,29 @@ fn publish_progress(sender: Option<&watch::Sender<TransferProgress>>, progress: 
         sender.send_replace(progress.clone());
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn active_file_tracker_counts_unique_paths() {
+        let tracker = ActiveFileTracker::default();
+        assert_eq!(tracker.active_files(), 0);
+
+        let first_a = tracker.enter("a.bin");
+        assert_eq!(tracker.active_files(), 1);
+        let second_a = tracker.enter("a.bin");
+        assert_eq!(tracker.active_files(), 1);
+
+        let b = tracker.enter("b.bin");
+        assert_eq!(tracker.active_files(), 2);
+
+        drop(first_a);
+        assert_eq!(tracker.active_files(), 2);
+        drop(second_a);
+        assert_eq!(tracker.active_files(), 1);
+        drop(b);
+        assert_eq!(tracker.active_files(), 0);
+    }
+}
