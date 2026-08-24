@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
-use dashmap::DashSet;
+use dashmap::{DashMap, DashSet, mapref::entry::Entry};
 use fastsync_core::{
     ChunkDescriptor, FileError, FileOperation, FileProgress, FileType, HashedFile, JobStatus,
     ManifestEntry, TransferJob, TransferProgress, VerificationMode, ensure_source_unchanged,
@@ -36,6 +36,51 @@ const HASH_BATCH_SIZE: usize = 64;
 struct UploadWork {
     file: Arc<HashedFile>,
     chunk: ChunkDescriptor,
+}
+
+#[derive(Clone, Default)]
+struct ActiveFileTracker {
+    counts: Arc<DashMap<String, usize>>,
+}
+
+impl ActiveFileTracker {
+    fn enter(&self, path: &str) -> ActiveFileGuard {
+        match self.counts.entry(path.to_owned()) {
+            Entry::Occupied(mut count) => {
+                *count.get_mut() = count.get().saturating_add(1);
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(1);
+            }
+        }
+        ActiveFileGuard {
+            tracker: self.clone(),
+            path: path.to_owned(),
+        }
+    }
+
+    fn active_files(&self) -> u32 {
+        u32::try_from(self.counts.len()).unwrap_or(u32::MAX)
+    }
+}
+
+struct ActiveFileGuard {
+    tracker: ActiveFileTracker,
+    path: String,
+}
+
+impl Drop for ActiveFileGuard {
+    fn drop(&mut self) {
+        match self.tracker.counts.entry(self.path.clone()) {
+            Entry::Occupied(mut count) if *count.get() > 1 => {
+                *count.get_mut() -= 1;
+            }
+            Entry::Occupied(count) => {
+                count.remove();
+            }
+            Entry::Vacant(_) => {}
+        }
+    }
 }
 
 impl TransferEngine {
@@ -798,18 +843,26 @@ impl TransferEngine {
             .progress
             .queued_chunks
             .min(u64::from(job.config.concurrency));
+        let initial_active_files = upload_work(files, plans)
+            .take(concurrency)
+            .map(|(path, _)| path)
+            .collect::<HashSet<_>>()
+            .len();
         job.progress.active_chunk_streams = u32::try_from(initial_active).unwrap_or(u32::MAX);
-        job.progress.active_file_streams = job.progress.active_chunk_streams;
+        job.progress.active_file_streams = u32::try_from(initial_active_files).unwrap_or(u32::MAX);
         self.persist_job(job, progress)?;
+        let active_files = ActiveFileTracker::default();
         let work = stream::iter(upload_work(files, plans).map(|(path, work)| {
             let connection = connection.clone();
             let cancellation = cancellation.clone();
             let mut pause = (*pause).clone();
             let source_root = source_root.clone();
             let terminal_paths = Arc::clone(&terminal_paths);
+            let active_files = active_files.clone();
             let file_size = work.as_ref().map_or(0, |work| work.file.entry.size);
             let chunk_size = work.as_ref().map_or(0, |work| work.chunk.size);
             async move {
+                let _active_file = active_files.enter(&path);
                 let result = async {
                     if terminal_paths.contains(&path) {
                         return Ok(false);
@@ -884,7 +937,7 @@ impl TransferEngine {
                 .queued_chunks
                 .min(u64::from(job.config.concurrency));
             job.progress.active_chunk_streams = u32::try_from(active).unwrap_or(u32::MAX);
-            job.progress.active_file_streams = job.progress.active_chunk_streams;
+            job.progress.active_file_streams = active_files.active_files();
             job.progress.current_file = Some(FileProgress {
                 relative_path: path.clone(),
                 size: file_size,
