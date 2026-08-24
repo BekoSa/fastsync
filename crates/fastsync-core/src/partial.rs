@@ -20,7 +20,7 @@ pub fn initialize_partial_file(destination: impl AsRef<Path>, size: u64) -> Resu
 /// Creates or truncates an explicit staging file and sets its final length.
 pub fn initialize_partial_file_at(partial_path: impl AsRef<Path>, size: u64) -> Result<File> {
     let partial_path = partial_path.as_ref();
-    match fs::symlink_metadata(&partial_path) {
+    match fs::symlink_metadata(partial_path) {
         Ok(metadata) if !metadata.is_file() => {
             return Err(CoreError::NotRegularFile {
                 path: partial_path.to_path_buf(),
@@ -31,7 +31,7 @@ pub fn initialize_partial_file_at(partial_path: impl AsRef<Path>, size: u64) -> 
         Err(source) => {
             return Err(CoreError::io(
                 "checking existing partial file at",
-                &partial_path,
+                partial_path,
                 source,
             ));
         }
@@ -42,10 +42,10 @@ pub fn initialize_partial_file_at(partial_path: impl AsRef<Path>, size: u64) -> 
         .write(true)
         .create(true)
         .truncate(true)
-        .open(&partial_path)
-        .map_err(|source| CoreError::io("creating partial file at", &partial_path, source))?;
+        .open(partial_path)
+        .map_err(|source| CoreError::io("creating partial file at", partial_path, source))?;
     file.set_len(size)
-        .map_err(|source| CoreError::io("sizing partial file at", &partial_path, source))?;
+        .map_err(|source| CoreError::io("sizing partial file at", partial_path, source))?;
     Ok(file)
 }
 
@@ -121,7 +121,7 @@ where
     }
 
     file.sync_all()
-        .map_err(|source| CoreError::io("syncing partial file at", &partial_path, source))?;
+        .map_err(|source| CoreError::io("syncing partial file at", partial_path, source))?;
     if let Err(error) = apply_manifest_metadata(partial_path, &expected.entry) {
         drop(file);
         let _ = make_staging_writable(partial_path);
